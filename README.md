@@ -35,6 +35,16 @@ If your bottle isn't named `Steam`, see **"Different bottle name"** near the end
 
 ---
 
+## Screenshots
+
+<img src="screenshots/Anno.png" alt="Anno 117 on Mac CrossOver" />
+
+<img src="screenshots/Anno2.png" alt="Anno 117 gameplay on Mac CrossOver" />
+
+**Performance:** Getting ~30 FPS on high settings and ~50 FPS on medium settings on an **M5 Max**. High settings with DLSS set to Quality, running on **Game Porting Toolkit 4.0b1**.
+
+---
+
 ## What was actually broken (short version)
 
 Anno 117 only knows how to create its display surface one specific way
