@@ -14,27 +14,6 @@ into campaigns.
 
 ---
 
-## Is this for me?
-
-You need **all** of these:
-
-- An **Apple Silicon** Mac (M1/M2/M3/M4/M5…), macOS 15 or newer.
-- **CrossOver** installed (CrossOver 26 or the free **CrossOver Preview**). The
-  Preview build is recommended — it ships the newest Apple graphics layer
-  (D3DMetal 4.0 beta 1) that this fix relies on.
-- A **CrossOver bottle** (named **Steam** by default here) with **Steam**
-  installed, and **Anno 117: Pax Romana** installed in it through Steam.
-- The game must already **download and install** in the bottle (it does — it
-  just won't *run* without this fix).
-
-If your bottle isn't named `Steam`, see **"Different bottle name"** near the end.
-
-> All commands below are run in **Terminal** (Applications → Utilities), from
-> **inside this folder** — the one you downloaded/cloned this into. `cd` there
-> first, e.g. `cd ~/Downloads/anno117-crossover-fix`.
-
----
-
 ## Screenshots
 
 <img src="screenshots/Anno.png" alt="Anno 117 on Mac CrossOver" />
@@ -42,6 +21,109 @@ If your bottle isn't named `Steam`, see **"Different bottle name"** near the end
 <img src="screenshots/Anno2.png" alt="Anno 117 gameplay on Mac CrossOver" />
 
 **Performance:** Getting ~30 FPS on high settings and ~50 FPS on medium settings on an **M5 Max**. High settings with DLSS set to Quality, running on **Game Porting Toolkit 4.0b1**.
+
+---
+
+## Quick Start
+
+### What you need before starting
+
+- An **Apple Silicon Mac** (M1, M2, M3, M4, M5, or newer) running macOS 15 or newer
+- **Anno 117: Pax Romana** purchased and installed through Steam
+- **CrossOver** installed (you can get the free **CrossOver Preview** from [CodeWeavers](https://www.codeweavers.com/crossover/preview) — this is the recommended version)
+
+If you don't have CrossOver yet, download it first and set up a Steam bottle with Anno 117 installed (CrossOver will walk you through this).
+
+### Step 1: Download this fix
+
+Download the latest release from [here](https://github.com/maxhenkentech/anno117-mac-crossover/releases/latest).
+
+This will download a `.zip` file to your **Downloads** folder. Double-click it to extract it — you'll get a folder called `anno117-mac-crossover`.
+
+### Step 2: Install the fix
+
+1. Open **Terminal** (press `⌘ Space`, type "Terminal", press Enter)
+2. Copy and paste the following command, then press Enter:
+
+   ```
+   cd ~/Downloads/anno117-mac-crossover && chmod +x *.sh && ./install.sh
+   ```
+
+3. You should see `Done.` at the end. That's it — the fix is installed!
+
+> **Note:** If you saved the folder somewhere other than Downloads, replace `~/Downloads/` with the path where you extracted it. For example, if it's on your Desktop: `cd ~/Desktop/anno117-mac-crossover && chmod +x *.sh && ./install.sh`
+
+### Step 3: Play the game
+
+The easiest way to launch is with the included helper script, which prevents common issues:
+
+```
+./launch-anno117.sh
+```
+
+You can also just press **Play** in Steam normally. (But if you've played once already today, use the script above — see the troubleshooting section below.)
+
+**First launch:** After the Ubisoft launcher appears, you'll see a popup about your **graphics driver being outdated**. This is **normal and harmless** — just click through it and the game will load.
+
+---
+
+## Troubleshooting
+
+### Black screen when reopening the game? (common)
+
+If you quit the game and try to start it again and get a **black screen**, a leftover Ubisoft process is still running in the background.
+
+**The fix:** Run the launch script instead of clicking Play in Steam:
+
+```
+./launch-anno117.sh
+```
+
+This automatically cleans up leftover processes before launching. Make sure you're in the right folder first:
+
+```
+cd ~/Downloads/anno117-mac-crossover && ./launch-anno117.sh
+```
+
+### Game stopped working after a Steam update?
+
+If Steam updated the game (or you clicked "Verify integrity of game files"), the fix was overwritten. Just reinstall it:
+
+```
+cd ~/Downloads/anno117-mac-crossover && ./install.sh
+ ```
+
+### Want to remove the fix completely?
+
+```
+cd ~/Downloads/anno117-mac-crossover && ./uninstall.sh
+```
+
+This restores the original game file and removes the CrossOver settings.
+
+---
+
+## Fullscreen
+
+The installer sets **borderless fullscreen** at your display's native resolution by default.
+
+- **In game:** Options → Graphics → *Display Mode*. Choose **Borderless** (recommended). Avoid exclusive **Fullscreen** — it can misbehave under CrossOver.
+- **By hand:** Edit `…/Anno 117 - Pax Romana/config/engine.ini` inside the bottle, in the `"Window"` section:
+  - `"FullscreenType": 1` → 0 = windowed, 1 = borderless (recommended), 2 = exclusive
+  - `"ScreenXSize"` / `"ScreenYSize"` → your display resolution (e.g. 3456 × 2234)
+  - `"NoWindowFrame": true`, `"MaximizedWindow": true`
+
+---
+
+## Different bottle name?
+
+If your CrossOver bottle isn't called `Steam`, pass its name to any command:
+
+```
+ANNO_BOTTLE="YourBottleName" ./install.sh
+ANNO_BOTTLE="YourBottleName" ./launch-anno117.sh
+ANNO_BOTTLE="YourBottleName" ./uninstall.sh
+```
 
 ---
 
@@ -54,115 +136,6 @@ tiny helper into the game that quietly rewrites that one unsupported call into
 an equivalent one the Mac layer *does* support. Nothing else about the game is
 modified.
 
-(Technical details are at the bottom.)
-
----
-
-## Install
-
-1. Open **Terminal** and `cd` into this folder.
-2. Run:
-
-   ```
-   chmod +x *.sh && ./install.sh
-   ```
-
-3. You should see `Done.` at the end. That's it.
-
-The installer:
-- copies the fix (`amd_ags_x64.dll`) into the game,
-- keeps a safe backup of the original file (`amd_ags_orig.dll`),
-- turns on the two settings CrossOver needs to load the fix.
-
-It's safe to run again anytime (see **"After a Steam update"**).
-
----
-
-## Play
-
-You can launch the game **either way**:
-
-**Option A — normal Steam launch.** Just press **Play** in Steam as usual.
-⚠️ If you've played once already this session, **clear the leftover Ubisoft
-launcher first** (see the black‑screen note below), or the game may open to a
-black screen.
-
-**Option B — the helper script (optional, but easier).** It clears those
-leftovers for you automatically, so you never hit the black screen:
-
-```
-./launch-anno117.sh
-```
-
-Both do the same thing — Option B just saves you the manual cleanup step.
-
-### The "graphics driver" popup is normal ✅
-
-Right after the Ubisoft launcher you'll see a warning popup about your **graphics
-driver being outdated / unsupported**.
-
-**This is expected and harmless.** D3DMetal reports a "compatibility" GPU that
-the game doesn't recognize as current. Just click the button to continue — the
-game loads normally. You'll see it every launch.
-
----
-
-## ⚠️ Black screen when you re‑open the game? (common — easy fix)
-
-If you quit the game and start it again and get a **black screen** (or it just
-won't start), it's almost always a **leftover Ubisoft launcher** from the
-previous session still running in the background. Steam/Ubisoft then thinks the
-game is "already running" and the new copy comes up black.
-
-**Fix — clear the leftovers,** then launch again. Either use `./launch-anno117.sh`
-(which does this automatically), or run this once in Terminal:
-
-```
-pkill -9 -f "Anno117.exe"; pkill -9 -f "upc.exe"; pkill -9 -f "UplayWebCore"; pkill -9 -f "UbisoftGameLauncher"
-```
-
-If you launch with Steam's **Play** button, do this cleanup **before every
-re‑launch** in the same session.
-
----
-
-## Fullscreen
-
-The installer/config already sets **borderless fullscreen at your display's
-native resolution**. If you ever want to change it:
-
-- **In game:** Options → Graphics → *Display Mode*. Choose **Borderless**
-  (recommended on Mac). Avoid exclusive **Fullscreen** — with this fix,
-  borderless behaves best; exclusive fullscreen can misbehave under CrossOver.
-- **By hand:** edit
-  `…/Anno 117 - Pax Romana/config/engine.ini` inside the bottle, in the
-  `"Window"` section:
-  - `"FullscreenType": 1`  → 0 = windowed, 1 = borderless (recommended), 2 = exclusive
-  - `"ScreenXSize" / "ScreenYSize"` → your display resolution (e.g. 3456 × 2234)
-  - `"NoWindowFrame": true`, `"MaximizedWindow": true`
-
----
-
-## After a Steam update (important)
-
-A Steam **game update**, or **Verify integrity of game files**, will overwrite
-the fix with Ubisoft's original file and the game will crash again. Just
-**re‑run the installer** from this folder:
-
-```
-./install.sh
-```
-
----
-
-## Uninstall / revert
-
-```
-./uninstall.sh
-```
-
-This restores the original game file and removes the two CrossOver settings.
-
 ---
 
 ## Known minor issues
@@ -174,22 +147,9 @@ This restores the original game file and removes the two CrossOver settings.
   on Windows too and are **not caused by this fix**. The game loads and plays
   fine; at most a stray prop/flag may show a placeholder. Nothing to fix on our
   side.
-- **The "outdated graphics driver" popup** appears every launch (harmless — see
-  above).
+- **The "outdated graphics driver" popup** appears every launch (harmless — click through it).
 - **Performance** under CrossOver/D3DMetal will be lower than a native Windows
   PC with the same GPU; tune graphics settings to taste.
-
----
-
-## Different bottle name
-
-If your Steam bottle isn't called `Steam`, pass its name to every script:
-
-```
-ANNO_BOTTLE="YourBottleName" ./install.sh
-ANNO_BOTTLE="YourBottleName" ./launch-anno117.sh
-ANNO_BOTTLE="YourBottleName" ./uninstall.sh
-```
 
 ---
 
