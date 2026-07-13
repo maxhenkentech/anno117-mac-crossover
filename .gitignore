@@ -1,0 +1,23 @@
+# Never commit third-party / game binaries.
+# The ONLY DLL that belongs in this repo is our own compiled shim,
+# amd_ags_x64.dll (built from src/). Everything below is either the user's
+# own game files (copied locally at install time) or build junk.
+
+# The original AMD DLL is copied from the user's game install by install.sh.
+# It must never end up in the repo.
+amd_ags_orig.dll
+*_orig.dll
+
+# Any other stray game/engine binaries or archives
+*.rda
+d3d12*.dll
+dxgi*.dll
+sl.*.dll
+nvngx*.dll
+nvapi*.dll
+
+# Build / OS junk
+*.o
+*.obj
+*.exe
+.DS_Store
