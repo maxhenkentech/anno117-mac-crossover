@@ -14,7 +14,29 @@ done
 [ -z "$CX" ] && { echo "ERROR: CrossOver not found." >&2; exit 1; }
 
 BOTTLE="${ANNO_BOTTLE:-Steam}"
-GAME_DIR="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE/drive_c/Program Files (x86)/Steam/steamapps/common/Anno 117 - Pax Romana/Bin/Win64"
+BOTTLE_DIR="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE"
+
+# Same game-dir detection as install.sh (Steam or Ubisoft Connect layout).
+if [ -n "${ANNO_GAME_DIR:-}" ]; then
+    GAME_DIR="$ANNO_GAME_DIR"
+else
+    GAME_DIR=""
+    for cand in \
+        "$BOTTLE_DIR/drive_c/Program Files (x86)/Steam/steamapps/common/Anno 117 - Pax Romana/Bin/Win64" \
+        "$BOTTLE_DIR/drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher/games/Anno 117 - Pax Romana/Bin/Win64" \
+        "$BOTTLE_DIR/drive_c/Program Files/Ubisoft/Ubisoft Game Launcher/games/Anno 117 - Pax Romana/Bin/Win64"; do
+        if [ -f "$cand/amd_ags_x64.dll" ] || [ -f "$cand/Anno117.exe" ]; then GAME_DIR="$cand"; break; fi
+    done
+    if [ -z "$GAME_DIR" ]; then
+        found="$(find "$BOTTLE_DIR/drive_c" -iname "Anno117.exe" -type f 2>/dev/null | head -n1)"
+        [ -n "$found" ] && GAME_DIR="$(dirname "$found")"
+    fi
+fi
+
+if [ -z "$GAME_DIR" ]; then
+    echo "Could not locate the game in bottle '$BOTTLE'; nothing to restore." >&2
+    GAME_DIR="/nonexistent"
+fi
 
 if [ -f "$GAME_DIR/amd_ags_orig.dll" ]; then
     cp "$GAME_DIR/amd_ags_orig.dll" "$GAME_DIR/amd_ags_x64.dll"

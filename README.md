@@ -29,10 +29,12 @@ into campaigns.
 ### What you need before starting
 
 - An **Apple Silicon Mac** (M1, M2, M3, M4, M5, or newer) running macOS 15 or newer
-- **Anno 117: Pax Romana** purchased and installed through Steam
+- **Anno 117: Pax Romana** purchased and installed, either through **Steam** or through **Ubisoft Connect** running directly in CrossOver
 - **CrossOver** installed (you can get the free **CrossOver Preview** from [CodeWeavers](https://www.codeweavers.com/crossover/preview) — this is the recommended version)
 
-If you don't have CrossOver yet, download it first and set up a Steam bottle with Anno 117 installed (CrossOver will walk you through this).
+If you don't have CrossOver yet, download it first and set up a bottle with Anno 117 installed (CrossOver will walk you through this).
+
+> **Steam or Ubisoft Connect — same fix.** Steam doesn't run the game itself; it just launches Ubisoft Connect, which launches the game. The fix patches the game the same way either way. The Quick Start below uses the Steam copy; if you run Ubisoft Connect directly, see **"Ubisoft Connect version"** just after it.
 
 ### Step 1: Download this fix
 
@@ -49,7 +51,9 @@ This will download a `.zip` file to your **Downloads** folder. Double-click it t
    cd ~/Downloads/anno117-mac-crossover && chmod +x *.sh && ./install.sh
    ```
 
-3. You should see `Done.` at the end. That's it — the fix is installed!
+3. The installer is **interactive**. It shows a numbered list of your CrossOver bottles (and marks the ones where it can see Anno 117, and whether it's the **Steam** or **Ubisoft Connect** copy). Type the number of the bottle the game is in, press Enter, check the folder it found, and type `y` to confirm.
+
+4. You should see `Done.` at the end. That's it — the fix is installed!
 
 > **Note:** If you saved the folder somewhere other than Downloads, replace `~/Downloads/` with the path where you extracted it. For example, if it's on your Desktop: `cd ~/Desktop/anno117-mac-crossover && chmod +x *.sh && ./install.sh`
 
@@ -64,6 +68,20 @@ The easiest way to launch is with the included helper script, which prevents com
 You can also just press **Play** in Steam normally. (But if you've played once already today, use the script above — see the troubleshooting section below.)
 
 **First launch:** After the Ubisoft launcher appears, you'll see a popup about your **graphics driver being outdated**. This is **normal and harmless** — just click through it and the game will load.
+
+---
+
+## Ubisoft Connect version (running Ubisoft Connect directly in CrossOver)
+
+> **Note:** the fix in this repo was developed and tested against the **Steam** copy. The steps here are the same fix applied to a direct Ubisoft Connect install — provided as best-effort guidance and **not yet tested** by the author (I don't own the game on Ubisoft Connect). If you try it, a PR confirming or correcting these steps is very welcome.
+
+The fix is **identical** — it patches `Anno117.exe`, the same binary regardless of store. Only two things change: **where the game folder is** and **how you launch it**.
+
+**Install.** Run `./install.sh` exactly as above and, at the bottle menu, pick the bottle Ubisoft Connect is in. The installer detects the game there automatically (it knows both the default Ubisoft location and custom install folders), shows you the folder, and asks you to confirm — same as for Steam.
+
+**Launch.** Start the game from **Ubisoft Connect's own Play button** (or its CrossOver launcher entry) — not through Steam. The helper script `./launch-anno117.sh` is **Steam-specific** and does not apply. The black-screen-on-reopen note in Troubleshooting still applies; if a relaunch comes up black, clear the leftover Ubisoft processes first (command below).
+
+Placing the files by hand? See **"Manual install"** below — the DLL location is the same as Steam, only the parent path differs.
 
 ---
 
@@ -85,9 +103,9 @@ This automatically cleans up leftover processes before launching. Make sure you'
 cd ~/Downloads/anno117-mac-crossover && ./launch-anno117.sh
 ```
 
-### Game stopped working after a Steam update?
+### Game stopped working after a game update?
 
-If Steam updated the game (or you clicked "Verify integrity of game files"), the fix was overwritten. Just reinstall it:
+If the game was updated (or you ran Steam's "Verify integrity of game files" / Ubisoft Connect's "Verify files"), the fix was overwritten. Just reinstall it and pick the same bottle:
 
 ```
 cd ~/Downloads/anno117-mac-crossover && ./install.sh
@@ -117,13 +135,50 @@ The installer sets **borderless fullscreen** at your display's native resolution
 
 ## Different bottle name?
 
-If your CrossOver bottle isn't called `Steam`, pass its name to any command:
+`./install.sh` shows a menu of your bottles, so you normally don't need to name one. But you can skip the prompts (handy for re-runs or automation):
 
 ```
-ANNO_BOTTLE="YourBottleName" ./install.sh
-ANNO_BOTTLE="YourBottleName" ./launch-anno117.sh
+ANNO_BOTTLE="YourBottleName" ANNO_YES=1 ./install.sh
+ANNO_BOTTLE="YourBottleName" ./launch-anno117.sh          # Steam only
 ANNO_BOTTLE="YourBottleName" ./uninstall.sh
 ```
+
+- `ANNO_BOTTLE="Name"` — use this bottle, skip the menu.
+- `ANNO_GAME_DIR="/path/.../Bin/Win64"` — use this exact game folder, skip detection (for unusual custom installs).
+- `ANNO_YES=1` — skip the confirmation prompt.
+
+---
+
+## Manual install (if you'd rather not run the script)
+
+The script just automates these four steps. They're the **same for Steam and Ubisoft Connect** — only the game folder's location differs.
+
+**1. Find the game's `Bin\Win64` folder** (the one containing `Anno117.exe`) inside your CrossOver bottle. `…/Bottles/` below is `~/Library/Application Support/CrossOver/Bottles/`.
+
+- **Steam:** `…/Bottles/<YourBottle>/drive_c/Program Files (x86)/Steam/steamapps/common/Anno 117 - Pax Romana/Bin/Win64/`
+- **Ubisoft Connect (default):** `…/Bottles/<YourBottle>/drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher/games/Anno 117 - Pax Romana/Bin/Win64/`
+- **Custom install folder:** wherever you installed it, ending in `…/Anno 117 - Pax Romana/Bin/Win64/`.
+
+**2. Back up the original AMD DLL.** In that folder, rename the existing `amd_ags_x64.dll` to `amd_ags_orig.dll`.
+
+**3. Copy in the fix.** Copy this repo's `amd_ags_x64.dll` into that same folder. It should now contain, side by side:
+
+```
+Anno117.exe        (the game)
+amd_ags_x64.dll    ← the fix (from this repo)
+amd_ags_orig.dll   ← the original, renamed (backup — the fix forwards to it)
+```
+
+**4. Turn on the two Wine DLL overrides** for `Anno117.exe` in that bottle. Easiest is the same `reg` command the installer uses — run it in Terminal (replace `Steam` with your bottle name):
+
+```
+WINE="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine"   # or "CrossOver Preview.app"
+KEY='HKCU\Software\Wine\AppDefaults\Anno117.exe\DllOverrides'
+"$WINE" --bottle "Steam" --wait-children -- reg add "$KEY" /v amd_ags_x64  /t REG_SZ /d 'native,builtin' /f
+"$WINE" --bottle "Steam" --wait-children -- reg add "$KEY" /v amd_ags_orig /t REG_SZ /d 'native'          /f
+```
+
+Prefer a GUI? In CrossOver, open the bottle → **Wine Configuration → Libraries**, add `amd_ags_x64` set to *native then builtin* and `amd_ags_orig` set to *native*.
 
 ---
 
