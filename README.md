@@ -30,7 +30,7 @@ into campaigns.
 
 - An **Apple Silicon Mac** (M1, M2, M3, M4, M5, or newer) running macOS 15 or newer
 - **Anno 117: Pax Romana** purchased and installed, either through **Steam** or through **Ubisoft Connect** running directly in CrossOver
-- **CrossOver** installed (you can get the free **CrossOver Preview** from [CodeWeavers](https://www.codeweavers.com/crossover/preview) — this is the recommended version)
+- **CrossOver** installed. This fix is developed and tested against **[CrossOver Preview](https://www.codeweavers.com/crossover/preview)**, which ships **Game Porting Toolkit 4 (GPTK4)** integrated — Apple's latest D3DMetal translation layer, and the one this shim's swapchain path is verified against. The free CrossOver Preview is the recommended version; older CrossOver releases without GPTK4 may not run the game at all.
 
 If you don't have CrossOver yet, download it first and set up a bottle with Anno 117 installed (CrossOver will walk you through this).
 
