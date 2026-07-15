@@ -77,7 +77,19 @@ You can also just press **Play** in Steam normally. (But if you've played once a
 
 The fix is **identical** — it patches `Anno117.exe`, the same binary regardless of store. Only two things change: **where the game folder is** and **how you launch it**.
 
-**Install.** Run `./install.sh` exactly as above and, at the bottle menu, pick the bottle Ubisoft Connect is in. The installer detects the game there automatically (it knows both the default Ubisoft location and custom install folders), shows you the folder, and asks you to confirm — same as for Steam.
+**Install.** Ubisoft Connect users should prefer the dedicated installer:
+
+```
+./install-ubisoft.sh
+```
+
+It applies the **same** swapchain-fix shim as `install.sh`, but is tailored to a direct Ubisoft Connect install:
+
+- The bottle defaults to **`Ubisoft Connect`** (no menu if that's your bottle name).
+- It sets the Wine DLL overrides for **both** `Anno117.exe` **and** `Anno117_plus.exe`. The Ubisoft build ships the `_plus` variant alongside the base exe, and **both** statically import `amd_ags_x64.dll`. The generic `install.sh` only overrides `Anno117.exe` — so on a Ubisoft Connect install it can leave the DLLs copied but the game still crashing on the `_plus` path.
+- It does **not** swallow `reg` errors: a silently-failed override write looks exactly like "the fix doesn't work", which was the original Ubisoft bug.
+
+It takes the same non-interactive overrides as `install.sh` (`ANNO_BOTTLE`, `ANNO_GAME_DIR`, `ANNO_YES`) and is safe to re-run after a game update or "Verify files".
 
 **Launch.** Start the game from **Ubisoft Connect's own Play button** (or its CrossOver launcher entry) — not through Steam. The helper script `./launch-anno117.sh` is **Steam-specific** and does not apply. The black-screen-on-reopen note in Troubleshooting still applies; if a relaunch comes up black, clear the leftover Ubisoft processes first (command below).
 
@@ -126,9 +138,10 @@ This restores the original game file and removes the CrossOver settings.
 The installer sets **borderless fullscreen** at your display's native resolution by default.
 
 - **In game:** Options → Graphics → *Display Mode*. Choose **Borderless** (recommended). Avoid exclusive **Fullscreen** — it can misbehave under CrossOver.
-- **By hand:** Edit `…/Anno 117 - Pax Romana/config/engine.ini` inside the bottle, in the `"Window"` section:
+- **By hand:** Edit `engine.ini`, in the `"Window"` section. The file lives in the **Documents** folder inside the bottle (created on first launch), **not** next to the game binary — Anno stores its config here for both the Steam and Ubisoft Connect copies:
+  - `…/Bottles/<YourBottle>/drive_c/users/crossover/Documents/Anno 117 - Pax Romana/config/engine.ini`
   - `"FullscreenType": 1` → 0 = windowed, 1 = borderless (recommended), 2 = exclusive
-  - `"ScreenXSize"` / `"ScreenYSize"` → your display resolution (e.g. 3456 × 2234)
+  - `"ScreenXSize"` / `"ScreenYSize"` → your display's native resolution (e.g. 3456 × 2234 for a 16" MacBook Pro, 3024 × 1964 for a 14")
   - `"NoWindowFrame": true`, `"MaximizedWindow": true`
 
 ---
@@ -213,7 +226,8 @@ modified.
 | File | What it is |
 |------|------------|
 | `amd_ags_x64.dll` | The fix (a proxy DLL that patches the one unsupported call). |
-| `install.sh` | Installs the fix + enables the CrossOver settings. |
+| `install.sh` | Installs the fix + enables the CrossOver settings. Works for both Steam and Ubisoft Connect. |
+| `install-ubisoft.sh` | Same fix, tailored to a direct Ubisoft Connect install (also overrides `Anno117_plus.exe`; defaults to the `Ubisoft Connect` bottle). |
 | `uninstall.sh` | Restores the original and removes the settings. |
 | `launch-anno117.sh` | Clears leftover processes and launches the game (avoids the black‑screen bug). |
 | `src/ags_shim.c`, `src/ags_shim.def` | Source code of the fix, and how to rebuild it. |
