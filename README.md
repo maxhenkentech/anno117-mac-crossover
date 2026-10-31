@@ -149,6 +149,7 @@ This restores the original game file and removes the CrossOver settings.
 The installer sets **borderless fullscreen** at your display's native resolution by default.
 
 - **In game:** Options → Graphics → *Display Mode*. Choose **Borderless** (recommended). Avoid exclusive **Fullscreen** — it can misbehave under CrossOver.
+- **Resolution reset to the scaled size every launch?** Anno overwrites `engine.ini` with the HiDPI logical resolution (e.g. 1728x1117 instead of 3456x2234). Run `./restore-resolution.sh` before launching (set `ANNO_BOTTLE`, `ANNO_WIDTH`, `ANNO_HEIGHT` for your setup).
 - **By hand:** Edit `engine.ini`, in the `"Window"` section. The file lives in the **Documents** folder inside the bottle (created on first launch), **not** next to the game binary — Anno stores its config here for both the Steam and Ubisoft Connect copies:
   - `…/Bottles/<YourBottle>/drive_c/users/crossover/Documents/Anno 117 - Pax Romana/config/engine.ini`
   - `"FullscreenType": 1` → 0 = windowed, 1 = borderless (recommended), 2 = exclusive
@@ -239,6 +240,7 @@ modified.
 | `amd_ags_x64.dll` | The fix (a proxy DLL that patches the one unsupported call). |
 | `install.sh` | Installs the fix + enables the CrossOver settings. Works for both Steam and Ubisoft Connect. |
 | `install-ubisoft.sh` | Same fix, tailored to a direct Ubisoft Connect install (also overrides `Anno117_plus.exe`; defaults to the `Ubisoft Connect` bottle). |
+| `restore-resolution.sh` | Resets `engine.ini` to borderless at your native resolution. Anno rewrites it on every launch with the scaled HiDPI size (e.g. 1728x1117), so run it before launching if the picture looks wrong. |
 | `uninstall.sh` | Restores the original and removes the settings. |
 | `NOTPROTON.md` | Guide for running the fix through Steam + notproton (fastest setup, D3DMetal 4.0b2). |
 | `launch-anno117.sh` | Clears leftover processes and launches the game (avoids the black‑screen bug). |
