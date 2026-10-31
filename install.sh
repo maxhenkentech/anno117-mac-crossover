@@ -153,6 +153,16 @@ if [ "${ANNO_YES:-0}" != "1" ]; then
 fi
 
 # --- back up the real amd_ags_x64.dll -> amd_ags_orig.dll (once) ---
+# ponytail: the shim forwards its exports to amd_ags_orig, so its name appears
+# in the file; the real AMD DLL never mentions it. If the shim is installed but
+# the backup is gone, copying it to amd_ags_orig.dll would make the shim forward
+# to itself and destroy the last copy of the real DLL. Refuse instead.
+if grep -qa amd_ags_orig "$GAME_DIR/amd_ags_x64.dll" && [ ! -f "$GAME_DIR/amd_ags_orig.dll" ]; then
+    echo "ERROR: amd_ags_x64.dll is already the shim, but amd_ags_orig.dll is missing." >&2
+    echo "The real AMD DLL is gone. Use your store's file-verification (Steam:" >&2
+    echo "Verify integrity / Ubisoft Connect: Verify files), then re-run." >&2
+    exit 1
+fi
 if [ ! -f "$GAME_DIR/amd_ags_orig.dll" ]; then
     cp "$GAME_DIR/amd_ags_x64.dll" "$GAME_DIR/amd_ags_orig.dll"
     echo "Backed up original AMD DLL -> amd_ags_orig.dll"

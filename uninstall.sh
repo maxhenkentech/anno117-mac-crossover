@@ -46,7 +46,11 @@ else
     echo "No backup found; leaving amd_ags_x64.dll as-is."
 fi
 
-KEY='HKCU\Software\Wine\AppDefaults\Anno117.exe\DllOverrides'
-"$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_x64  /f >/dev/null 2>&1 || true
-"$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_orig /f >/dev/null 2>&1 || true
+# Both exes: the Ubisoft build ships Anno117_plus.exe and install-ubisoft.sh
+# sets the overrides for it too.
+for exe in Anno117.exe Anno117_plus.exe; do
+    KEY="HKCU\\Software\\Wine\\AppDefaults\\${exe}\\DllOverrides"
+    "$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_x64  /f >/dev/null 2>&1 || true
+    "$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_orig /f >/dev/null 2>&1 || true
+done
 echo "Removed DLL overrides. Fix uninstalled."
