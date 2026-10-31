@@ -20,7 +20,18 @@ into campaigns.
 
 <img src="screenshots/Anno2.png" alt="Anno 117 gameplay on Mac CrossOver" />
 
-**Performance:** Getting ~30 FPS on high settings and ~50 FPS on medium settings on an **M5 Max**. High settings with DLSS set to Quality, running on **Game Porting Toolkit 4.0b1**.
+**Performance (M5 Max):**
+
+| Setup | Settings | FPS |
+|---|---|---|
+| CrossOver bottle, Game Porting Toolkit 4.0b1 | High, DLSS Quality | ~30 |
+| CrossOver bottle, Game Porting Toolkit 4.0b1 | Medium | ~50 |
+| **Steam + notproton (Rosetta tool), Game Porting Toolkit 4.0b2** | **High, DLSS Quality, 1728x1117** | **~100** (92 in the screenshot below) |
+
+That is roughly a 3x jump on the same settings. See the full guide:
+**[Running Anno 117 through Steam + notproton](NOTPROTON.md)**.
+
+<img src="screenshots/Anno-notproton-d3dmetal4-hud.png" alt="Anno 117 on M5 Max via notproton, D3DMetal 4.0b2, Metal HUD showing 92 FPS" />
 
 ---
 
@@ -215,6 +226,7 @@ modified.
 | `amd_ags_x64.dll` | The fix (a proxy DLL that patches the one unsupported call). |
 | `install.sh` | Installs the fix + enables the CrossOver settings. |
 | `uninstall.sh` | Restores the original and removes the settings. |
+| `NOTPROTON.md` | Guide for running the fix through Steam + notproton (fastest setup, D3DMetal 4.0b2). |
 | `launch-anno117.sh` | Clears leftover processes and launches the game (avoids the black‑screen bug). |
 | `src/ags_shim.c`, `src/ags_shim.def` | Source code of the fix, and how to rebuild it. |
 
