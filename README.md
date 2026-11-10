@@ -134,6 +134,17 @@ If the game was updated (or you ran Steam's "Verify integrity of game files" / U
 cd ~/Downloads/anno117-mac-crossover && ./install.sh
  ```
 
+### Game starts, then crashes or exits right away? How to collect logs
+
+The fix writes a log inside the bottle at `C:\windows\temp\ags_shim.log` (on your Mac: `~/Library/Application Support/CrossOver/Bottles/<bottle>/drive_c/windows/temp/ags_shim.log`). To get a useful log for a bug report, delete that file, launch the game once until it fails, then attach the whole file. Every line has the process ID and a tick count. Look for these lines:
+
+- `[diag] EXCEPTION 0x... at <module>+0x...` followed by `#n` stack lines: a crash inside the game process, with where it happened.
+- `[diag] heartbeat N: top window=... class='...' title='...' WxH`: written every 2 seconds, so you can see how long the game stayed alive and what its window looked like.
+- `[diag] detach (process terminating)`: the game process ended normally. If this line is missing, the process was killed or crashed hard.
+- `[diag] modules (t+8s)`: the list of DLLs loaded in the game.
+
+If there is no `[diag]` line at all, the fix wasn't loaded; reinstall it. Also useful: the newest file in `Documents/Anno 117 - Pax Romana/log/` and any `wine`/`Anno117` crash report (`.ips`) in `~/Library/Logs/DiagnosticReports/`. Please remove your user name from anything you post.
+
 ### Want to remove the fix completely?
 
 ```

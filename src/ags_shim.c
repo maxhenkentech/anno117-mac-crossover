@@ -18,6 +18,8 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
+#include <tlhelp32.h>
 
 typedef struct { UINT Count; UINT Quality; } DXGI_SAMPLE_DESC;
 typedef struct {
@@ -50,6 +52,7 @@ static volatile LONG g_patched = 0;
 static void shim_log(const char *fmt, ...) {
     FILE *f = fopen("C:\\windows\\temp\\ags_shim.log", "a");
     if (!f) return;
+    fprintf(f, "[%lu %lu] ", GetCurrentProcessId(), GetTickCount());
     va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
     fputc('\n', f); fclose(f);
 }
@@ -153,13 +156,91 @@ static DWORD WINAPI worker(LPVOID param) {
     return 0;
 }
 
+
+/* ---- diagnostics (issue #5: "launches once, then black screen + exit") ---- */
+
+static void describe_addr(const void *addr, char *out, size_t n) {
+    HMODULE m = NULL;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &m) && m) {
+        char path[MAX_PATH] = "?";
+        GetModuleFileNameA(m, path, sizeof path);
+        const char *base = strrchr(path, '\\');
+        snprintf(out, n, "%s+0x%llx", base ? base + 1 : path,
+                 (unsigned long long)((const char*)addr - (const char*)m));
+    } else snprintf(out, n, "%p", addr);
+}
+
+static void log_modules(const char *why) {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
+    if (snap == INVALID_HANDLE_VALUE) return;
+    MODULEENTRY32 me; me.dwSize = sizeof me;
+    shim_log("[diag] modules (%s):", why);
+    if (Module32First(snap, &me)) do {
+        shim_log("[diag]   %p %s", (void*)me.modBaseAddr, me.szExePath);
+    } while (Module32Next(snap, &me));
+    CloseHandle(snap);
+}
+
+static LONG WINAPI diag_veh(EXCEPTION_POINTERS *ep) {
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    /* only fatal-looking first-chance exceptions; skip benign C++ exceptions (0xE06D7363) and noise */
+    if (code == 0xC0000005 || code == 0xC000001D || code == 0xC0000094 ||
+        code == 0xC00000FD || code == 0xC0000409 || code == 0xC0000374 ||
+        code == 0xC0000096 || code == 0x80000003) {
+        static volatile LONG n = 0;
+        if (InterlockedIncrement(&n) > 40) return EXCEPTION_CONTINUE_SEARCH;
+        char where[300];
+        describe_addr(ep->ExceptionRecord->ExceptionAddress, where, sizeof where);
+        shim_log("[diag] EXCEPTION 0x%08lx at %s info0=%llx info1=%llx tid=%lu",
+                 code, where,
+                 (unsigned long long)(ep->ExceptionRecord->NumberParameters > 0 ? ep->ExceptionRecord->ExceptionInformation[0] : 0),
+                 (unsigned long long)(ep->ExceptionRecord->NumberParameters > 1 ? ep->ExceptionRecord->ExceptionInformation[1] : 0),
+                 GetCurrentThreadId());
+        void *bt[24]; USHORT k = RtlCaptureStackBackTrace(0, 24, bt, NULL);
+        for (USHORT i = 0; i < k; i++) {
+            describe_addr(bt[i], where, sizeof where);
+            shim_log("[diag]   #%u %s", i, where);
+        }
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static DWORD WINAPI diag_thread(LPVOID p) {
+    (void)p;
+    Sleep(8000);
+    log_modules("t+8s");
+    /* heartbeat so we can see how long the process lives */
+    for (int i = 1; i <= 120; i++) {
+        HWND w = find_game_window();
+        char title[128] = "", cls[64] = ""; RECT r = {0};
+        if (w) { GetWindowTextA(w, title, sizeof title); GetClassNameA(w, cls, sizeof cls); GetWindowRect(w, &r); }
+        shim_log("[diag] heartbeat %d: top window=%p class='%s' title='%s' %ldx%ld",
+                 i, (void*)w, cls, title, r.right - r.left, r.bottom - r.top);
+        Sleep(2000);
+    }
+    return 0;
+}
+
+static void diag_init(void) {
+    char exe[MAX_PATH] = "?"; GetModuleFileNameA(NULL, exe, sizeof exe);
+    shim_log("[diag] attach: exe=%s", exe);
+    shim_log("[diag] cmdline=%s", GetCommandLineA());
+    AddVectoredExceptionHandler(1, diag_veh);
+    HANDLE t = CreateThread(NULL, 0, diag_thread, NULL, 0, NULL);
+    if (t) CloseHandle(t);
+}
+
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) {
     if (reason == DLL_PROCESS_ATTACH) {
         g_self = h;
         DisableThreadLibraryCalls(h);
         shim_log("[shim] amd_ags proxy attached; starting worker");
+        diag_init();
         HANDLE t = CreateThread(NULL, 0, worker, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }
+    if (reason == DLL_PROCESS_DETACH)
+        shim_log("[diag] detach (%s)", r ? "process terminating" : "FreeLibrary");
     return TRUE;
 }
