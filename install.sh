@@ -18,6 +18,7 @@
 #   ANNO_BOTTLE="Name"      skip the menu, use this bottle
 #   ANNO_GAME_DIR="/path"   skip detection, use this Bin/Win64 folder
 #   ANNO_YES=1              skip the confirmation prompt
+#   ANNO_NO_METALFX=1       don't add D3DM_ENABLE_METALFX=1 to the bottle
 #
 set -euo pipefail
 
@@ -180,6 +181,37 @@ KEY='HKCU\Software\Wine\AppDefaults\Anno117.exe\DllOverrides'
 "$CX" --bottle "$BOTTLE" --wait-children -- reg add "$KEY" /v amd_ags_x64  /t REG_SZ /d 'native,builtin' /f >/dev/null 2>&1
 "$CX" --bottle "$BOTTLE" --wait-children -- reg add "$KEY" /v amd_ags_orig /t REG_SZ /d 'native'          /f >/dev/null 2>&1
 echo "Enabled DLL overrides (amd_ags_x64=native,builtin  amd_ags_orig=native)"
+
+# --- enable D3DMetal's MetalFX (DLSS) bridge in the bottle (issue #5) --------
+# Since 3.0 the game requires NVIDIA Streamline. Without D3DM_ENABLE_METALFX=1
+# in the bottle, Streamline fails ("error code 8") and the game exits with
+# -2001 before the NVIDIA popup. A new CrossOver bottle doesn't set it.
+CONF="$BOTTLE_DIR/cxbottle.conf"
+METALFX_MARK=';; anno117-mac-crossover: D3DM_ENABLE_METALFX added by install.sh'
+if [ "${ANNO_NO_METALFX:-0}" = "1" ]; then
+    echo "Skipped the MetalFX bottle setting (ANNO_NO_METALFX=1)"
+elif [ ! -f "$CONF" ]; then
+    echo "WARNING: $CONF not found. Set D3DM_ENABLE_METALFX=1 by hand (see README)." >&2
+elif grep -qE '^"D3DM_ENABLE_METALFX"[[:space:]]*=[[:space:]]*"1"' "$CONF"; then
+    echo "MetalFX already enabled in the bottle (D3DM_ENABLE_METALFX=1)"
+else
+    cp "$CONF" "$CONF.anno117-bak"
+    tmp="$(mktemp)"
+    if grep -q '^\[EnvironmentVariables\]' "$CONF"; then
+        # Drop any other value for the key, then add ours under the section header.
+        awk -v mark="$METALFX_MARK" '
+            /^"D3DM_ENABLE_METALFX"/ { next }
+            { print }
+            /^\[EnvironmentVariables\]/ { print mark; print "\"D3DM_ENABLE_METALFX\" = \"1\"" }
+        ' "$CONF" > "$tmp"
+    else
+        cat "$CONF" > "$tmp"
+        printf '\n[EnvironmentVariables]\n%s\n"D3DM_ENABLE_METALFX" = "1"\n' "$METALFX_MARK" >> "$tmp"
+    fi
+    cat "$tmp" > "$CONF"; rm -f "$tmp"
+    echo "Enabled MetalFX in the bottle (D3DM_ENABLE_METALFX=1, backup: cxbottle.conf.anno117-bak)"
+    echo "  -> Quit Steam / Ubisoft Connect in this bottle and start it again so it takes effect."
+fi
 
 echo
 echo "Done."

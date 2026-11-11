@@ -53,4 +53,19 @@ for exe in Anno117.exe Anno117_plus.exe; do
     "$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_x64  /f >/dev/null 2>&1 || true
     "$CX" --bottle "$BOTTLE" --wait-children -- reg delete "$KEY" /v amd_ags_orig /f >/dev/null 2>&1 || true
 done
-echo "Removed DLL overrides. Fix uninstalled."
+echo "Removed DLL overrides."
+
+# Remove the MetalFX bottle setting, but only if install.sh added it (marked).
+CONF="$BOTTLE_DIR/cxbottle.conf"
+METALFX_MARK=';; anno117-mac-crossover: D3DM_ENABLE_METALFX added by install.sh'
+if [ -f "$CONF" ] && grep -qF "$METALFX_MARK" "$CONF"; then
+    tmp="$(mktemp)"
+    awk -v mark="$METALFX_MARK" '
+        $0 == mark { skip = 1; next }
+        skip && /^"D3DM_ENABLE_METALFX"/ { skip = 0; next }
+        { skip = 0; print }
+    ' "$CONF" > "$tmp"
+    cat "$tmp" > "$CONF"; rm -f "$tmp"
+    echo "Removed the MetalFX bottle setting that install.sh added."
+fi
+echo "Fix uninstalled."

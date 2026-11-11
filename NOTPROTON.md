@@ -95,6 +95,7 @@ lsof -p <Anno117 pid> | grep D3DMetal
 | "prefix ntdll is aa64 ... rebuild the prefix" | You switched tool flavor: step 4 |
 | Rebuild fails, "game is running" | Kill stray `winedevice.exe` / `wineserver` |
 | Overrides missing after rebuild | Redo step 2 |
+| Game log shows `Streamline SDK, error code 8` and `-2001`, no NVIDIA popup | In CrossOver bottles this is fixed by `D3DM_ENABLE_METALFX=1` (see the main README). For notproton, try adding `D3DM_ENABLE_METALFX=1` as a line in `defaults-rosetta` (step 5). This is **untested** on notproton; the author's notproton setup starts Streamline without it. |
 
 Game logs: `compatdata/3274580/pfx/drive_c/users/steamuser/Documents/Anno 117 - Pax Romana/log/`.
 Launcher log: `compatdata/3274580/notproton-run.log`.

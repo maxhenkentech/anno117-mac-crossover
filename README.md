@@ -66,6 +66,8 @@ This will download a `.zip` file to your **Downloads** folder. Double-click it t
 
 4. You should see `Done.` at the end. That's it — the fix is installed!
 
+The installer also turns on one CrossOver bottle setting the game needs since update 3.0: `D3DM_ENABLE_METALFX=1` (D3DMetal's MetalFX/DLSS bridge). Without it, a new bottle can't start NVIDIA Streamline and the game quits right away. If Steam or Ubisoft Connect was already running in that bottle, quit it and start it again so the setting takes effect.
+
 > **Note:** If you saved the folder somewhere other than Downloads, replace `~/Downloads/` with the path where you extracted it. For example, if it's on your Desktop: `cd ~/Desktop/anno117-mac-crossover && chmod +x *.sh && ./install.sh`
 
 ### Step 3: Play the game
@@ -134,11 +136,30 @@ If the game was updated (or you ran Steam's "Verify integrity of game files" / U
 cd ~/Downloads/anno117-mac-crossover && ./install.sh
  ```
 
+### Game quits right away, and the NVIDIA "outdated driver" popup never appears?
+
+Check the newest game log in `…/Bottles/<YourBottle>/drive_c/users/crossover/Documents/Anno 117 - Pax Romana/log/`. If it says `Failed to initialize NVIDIA Streamline SDK, error code 8` and `Global Startup failed with error code -2001`, the bottle is missing the MetalFX setting. Since update 3.0 the game requires NVIDIA Streamline, and Streamline only starts under D3DMetal with that setting on. The popup only appears after Streamline has started, so no popup is a good hint.
+
+`./install.sh` (and `./install-ubisoft.sh`) set it for you. To set it by hand: quit CrossOver, open `…/Bottles/<YourBottle>/cxbottle.conf`, and add this line under `[EnvironmentVariables]`:
+
+```
+"D3DM_ENABLE_METALFX" = "1"
+```
+
+If you set `"DisableStreamlineSDK": true` in `engine.ini` as a workaround, set it back to `false`.
+
+### "Failed to retrieve the DXGI adapter" (-1213) after plugging in or removing a display?
+
+If you connect or disconnect a monitor while CrossOver or Steam is running in the bottle, the game can fail with `Window system initialization failed. Monitor information will be unavailable!` and then `-1213`. Quit Steam / Ubisoft Connect and CrossOver completely, then start them again.
+
 ### Game starts, then crashes or exits right away? How to collect logs
 
 The fix writes a log inside the bottle at `C:\windows\temp\ags_shim.log` (on your Mac: `~/Library/Application Support/CrossOver/Bottles/<bottle>/drive_c/windows/temp/ags_shim.log`). To get a useful log for a bug report, delete that file, launch the game once until it fails, then attach the whole file. Every line has the process ID and a tick count. Look for these lines:
 
+- `[diag] shim <version> attach: ...`: the fix loaded, and which version.
+- `[dxgi] swapchain ...` with `output`, `display modes` and `bpc/colorspace` lines: what DXGI reports about the game's swapchains and the monitor they're on (size, desktop position, HDR).
 - `[diag] EXCEPTION 0x... at <module>+0x...` followed by `#n` stack lines: a crash inside the game process, with where it happened.
+- `[crash] ...` lines right after an exception: the CPU registers, what each value points to (a DLL, the stack, heap memory, or unmapped memory, shown as text if it's readable), the instruction bytes at the crash, and the top of the stack.
 - `[diag] heartbeat N: top window=... class='...' title='...' WxH`: written every 2 seconds, so you can see how long the game stayed alive and what its window looked like.
 - `[diag] detach (process terminating)`: the game process ended normally. If this line is missing, the process was killed or crashed hard.
 - `[diag] modules (t+8s)`: the list of DLLs loaded in the game.
@@ -151,7 +172,7 @@ If there is no `[diag]` line at all, the fix wasn't loaded; reinstall it. Also u
 cd ~/Downloads/anno117-mac-crossover && ./uninstall.sh
 ```
 
-This restores the original game file and removes the CrossOver settings.
+This restores the original game file and removes the CrossOver settings: the DLL overrides, and the MetalFX bottle setting if `install.sh` added it.
 
 ---
 
@@ -182,12 +203,13 @@ ANNO_BOTTLE="YourBottleName" ./uninstall.sh
 - `ANNO_BOTTLE="Name"` — use this bottle, skip the menu.
 - `ANNO_GAME_DIR="/path/.../Bin/Win64"` — use this exact game folder, skip detection (for unusual custom installs).
 - `ANNO_YES=1` — skip the confirmation prompt.
+- `ANNO_NO_METALFX=1` — don't touch the bottle's `D3DM_ENABLE_METALFX` setting (installers only).
 
 ---
 
 ## Manual install (if you'd rather not run the script)
 
-The script just automates these four steps. They're the **same for Steam and Ubisoft Connect** — only the game folder's location differs.
+The script just automates these five steps. They're the **same for Steam and Ubisoft Connect** — only the game folder's location differs.
 
 **1. Find the game's `Bin\Win64` folder** (the one containing `Anno117.exe`) inside your CrossOver bottle. `…/Bottles/` below is `~/Library/Application Support/CrossOver/Bottles/`.
 
@@ -215,6 +237,12 @@ KEY='HKCU\Software\Wine\AppDefaults\Anno117.exe\DllOverrides'
 ```
 
 Prefer a GUI? In CrossOver, open the bottle → **Wine Configuration → Libraries**, add `amd_ags_x64` set to *native then builtin* and `amd_ags_orig` set to *native*.
+
+**5. Turn on MetalFX in the bottle** (needed since update 3.0). Quit CrossOver, open `…/Bottles/<YourBottle>/cxbottle.conf` in a text editor, and add this line under the `[EnvironmentVariables]` section (create the section at the end of the file if it doesn't exist):
+
+```
+"D3DM_ENABLE_METALFX" = "1"
+```
 
 ---
 
@@ -285,6 +313,20 @@ x86_64-w64-mingw32-gcc -O2 -shared -o ../amd_ags_x64.dll ags_shim.c ags_shim.def
      path D3DMetal fully supports.
 - Wine DLL overrides make CrossOver load our native proxy:
   `amd_ags_x64 = native,builtin`, `amd_ags_orig = native`.
+- Since update 3.0 the game refuses to start without NVIDIA Streamline
+  (`Global Startup failed -2001`). Under D3DMetal, Streamline only initializes
+  when the bottle sets `D3DM_ENABLE_METALFX=1`; without it, Streamline loads its
+  plugins and then rejects all of them (`error code 8`). The installers add the
+  variable to the bottle's `cxbottle.conf` with a marker comment so
+  `uninstall.sh` can remove exactly that line.
+- For diagnostics, right after each swapchain is created the shim **queries**
+  (never patches) `IDXGISwapChain::GetDesc` (slot 12) and
+  `GetContainingOutput` (slot 15), then `IDXGIOutput::GetDesc` (slot 7),
+  `GetDisplayModeList` (slot 8, count only) and `IDXGIOutput6::GetDesc1`
+  (slot 27), and logs the results. A vectored exception handler logs crashes
+  with registers and stack. Patching the swapchain vtable itself does **not**
+  work: D3DMetal's swapchain methods dispatch back through their own vtable
+  slots, so a patched slot recurses into itself and the game hangs.
 - The vtable layout and DXGI interfaces used come from Microsoft's public
   DirectX documentation.
 

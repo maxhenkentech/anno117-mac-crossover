@@ -74,6 +74,86 @@ static HWND find_game_window(void) {
     return c.best;
 }
 
+/* ---- diagnostics: snapshot of the swapchain's display (issue #5) ----
+ * The issue-#5 crash happens ~0.2 s after the window switches to fullscreen.
+ * Right after creating each swapchain we query (never hook) what DXGI reports
+ * about it and the monitor it is on, so logs from crashing and working machines
+ * can be compared. Note: do NOT patch the swapchain/output vtables -- D3DMetal's
+ * swapchain methods dispatch back through their own vtable slots, so a patched
+ * slot recurses into itself (v0.2.2 test build hung in ResizeBuffers). */
+
+#define SHIM_VERSION "0.2.2-beta"
+
+typedef struct { UINT Numerator, Denominator; } DXGI_RATIONAL_;
+typedef struct {
+    UINT Width, Height; DXGI_RATIONAL_ RefreshRate; UINT Format;
+    int ScanlineOrdering, Scaling;
+} DXGI_MODE_DESC_;
+typedef struct {
+    DXGI_MODE_DESC_ BufferDesc; DXGI_SAMPLE_DESC SampleDesc;
+    UINT BufferUsage, BufferCount; HWND OutputWindow; BOOL Windowed;
+    int SwapEffect; UINT Flags;
+} DXGI_SWAP_CHAIN_DESC_;
+typedef struct {
+    WCHAR DeviceName[32]; RECT DesktopCoordinates; BOOL AttachedToDesktop;
+    int Rotation; HMONITOR Monitor;
+} DXGI_OUTPUT_DESC_;
+typedef struct {
+    WCHAR DeviceName[32]; RECT DesktopCoordinates; BOOL AttachedToDesktop;
+    int Rotation; HMONITOR Monitor; UINT BitsPerColor; int ColorSpace;
+    float RedPrimary[2], GreenPrimary[2], BluePrimary[2], WhitePoint[2];
+    float MinLuminance, MaxLuminance, MaxFullFrameLuminance;
+} DXGI_OUTPUT_DESC1_;
+
+/* {068346e8-aaec-4b84-add7-137f513f77a1} */
+static const GUID IID_IDXGIOutput6_ =
+    {0x068346e8,0xaaec,0x4b84,{0xad,0xd7,0x13,0x7f,0x51,0x3f,0x77,0xa1}};
+
+typedef HRESULT (WINAPI *PFN_QI)(void *This, REFIID riid, void **pp);
+typedef HRESULT (WINAPI *PFN_ScGetDesc)(void*, DXGI_SWAP_CHAIN_DESC_*);
+typedef HRESULT (WINAPI *PFN_GetOutput)(void*, void**);
+typedef HRESULT (WINAPI *PFN_OutGetDesc)(void*, DXGI_OUTPUT_DESC_*);
+typedef HRESULT (WINAPI *PFN_OutModeList)(void*, UINT, UINT, UINT*, void*);
+typedef HRESULT (WINAPI *PFN_OutGetDesc1)(void*, DXGI_OUTPUT_DESC1_*);
+
+#define VT(obj) (*(void***)(obj))
+
+static void log_swapchain_snapshot(void *sc) {
+    DXGI_SWAP_CHAIN_DESC_ d;
+    HRESULT hr = ((PFN_ScGetDesc)VT(sc)[12])(sc, &d);              /* IDXGISwapChain::GetDesc */
+    if (SUCCEEDED(hr))
+        shim_log("[dxgi] swapchain %p: %ux%u fmt=%u windowed=%d buffers=%u flags=0x%x",
+                 sc, d.BufferDesc.Width, d.BufferDesc.Height, d.BufferDesc.Format,
+                 d.Windowed, d.BufferCount, d.Flags);
+    void *out = NULL;
+    hr = ((PFN_GetOutput)VT(sc)[15])(sc, &out);                      /* GetContainingOutput */
+    if (FAILED(hr) || !out) {
+        shim_log("[dxgi] swapchain %p: GetContainingOutput -> 0x%08x", sc, (unsigned)hr);
+        return;
+    }
+    DXGI_OUTPUT_DESC_ od;
+    if (SUCCEEDED(((PFN_OutGetDesc)VT(out)[7])(out, &od)))           /* IDXGIOutput::GetDesc */
+        shim_log("[dxgi]   output %ls desktop=(%ld,%ld)-(%ld,%ld) attached=%d rotation=%d",
+                 od.DeviceName, od.DesktopCoordinates.left, od.DesktopCoordinates.top,
+                 od.DesktopCoordinates.right, od.DesktopCoordinates.bottom,
+                 od.AttachedToDesktop, od.Rotation);
+    UINT n28 = 0, n24 = 0;                                           /* GetDisplayModeList (count only) */
+    HRESULT h28 = ((PFN_OutModeList)VT(out)[8])(out, 28, 0, &n28, NULL);
+    HRESULT h24 = ((PFN_OutModeList)VT(out)[8])(out, 24, 0, &n24, NULL);
+    shim_log("[dxgi]   display modes: rgba8=%u (0x%08x) rgb10a2=%u (0x%08x)",
+             n28, (unsigned)h28, n24, (unsigned)h24);
+    void *out6 = NULL;
+    if (SUCCEEDED(((PFN_QI)VT(out)[0])(out, &IID_IDXGIOutput6_, &out6)) && out6) {
+        DXGI_OUTPUT_DESC1_ d1;
+        if (SUCCEEDED(((PFN_OutGetDesc1)VT(out6)[27])(out6, &d1)))   /* IDXGIOutput6::GetDesc1 */
+            shim_log("[dxgi]   bpc=%u colorspace=%d luminance=%.1f..%.1f fullframe=%.1f",
+                     d1.BitsPerColor, d1.ColorSpace, d1.MinLuminance,
+                     d1.MaxLuminance, d1.MaxFullFrameLuminance);
+        ((PFN_Release)VT(out6)[2])(out6);
+    }
+    ((PFN_Release)VT(out)[2])(out);
+}
+
 static HRESULT WINAPI My_CreateSwapChainForComposition(void *This, IUnknown *pDevice,
         const DXGI_SWAP_CHAIN_DESC1 *pDesc, void *pRestrictToOutput, void **ppSwapChain) {
     void **vt = *(void***)This;
@@ -89,6 +169,7 @@ static HRESULT WINAPI My_CreateSwapChainForComposition(void *This, IUnknown *pDe
     HRESULT hr = real_hwnd(This, pDevice, hwnd, &desc, NULL, pRestrictToOutput, ppSwapChain);
     shim_log("[shim] CreateSwapChainForHwnd -> hr=0x%08x swapchain=%p",
              (unsigned)hr, ppSwapChain ? *ppSwapChain : NULL);
+    if (SUCCEEDED(hr) && ppSwapChain && *ppSwapChain) log_swapchain_snapshot(*ppSwapChain);
     return hr;
 }
 
@@ -182,6 +263,69 @@ static void log_modules(const char *why) {
     CloseHandle(snap);
 }
 
+/* Describe what a 64-bit value points at: a module, this thread's stack,
+ * committed private/mapped memory, or nothing (and show it as ASCII if it is
+ * printable -- issue #5 had a "pointer" that was really the text "ISteamNe"). */
+static void describe_value(ULONG64 v, char *out, size_t n) {
+    char ascii[9] = {0}; BOOL printable = TRUE;
+    for (int i = 0; i < 8; i++) {
+        unsigned char ch = (unsigned char)(v >> (8 * i));
+        if (ch < 0x20 || ch > 0x7e) { printable = FALSE; break; }
+        ascii[i] = (char)ch;
+    }
+    if (v < 0x10000) { snprintf(out, n, "small"); return; }
+    NT_TIB *tib = (NT_TIB*)NtCurrentTeb();
+    if (v >= (ULONG64)(ULONG_PTR)tib->StackLimit && v < (ULONG64)(ULONG_PTR)tib->StackBase) {
+        snprintf(out, n, "stack"); return;
+    }
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery((LPCVOID)(ULONG_PTR)v, &mbi, sizeof mbi) && mbi.State == MEM_COMMIT) {
+        if (mbi.Type == MEM_IMAGE) { describe_addr((const void*)(ULONG_PTR)v, out, n); return; }
+        snprintf(out, n, "%s prot=0x%lx", mbi.Type == MEM_MAPPED ? "mapped" : "heap/private", mbi.Protect);
+        return;
+    }
+    snprintf(out, n, printable ? "UNMAPPED, ascii \"%s\"" : "UNMAPPED%s", printable ? ascii : "");
+}
+
+static BOOL readable(const void *p, size_t len) {
+    MEMORY_BASIC_INFORMATION mbi;
+    const char *a = (const char*)p, *end = a + len;
+    while (a < end) {
+        if (!VirtualQuery(a, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return FALSE;
+        a = (const char*)mbi.BaseAddress + mbi.RegionSize;
+    }
+    return TRUE;
+}
+
+static void dump_context(CONTEXT *c) {
+    struct { const char *name; ULONG64 v; } regs[] = {
+        {"rip", c->Rip}, {"rsp", c->Rsp}, {"rbp", c->Rbp},
+        {"rax", c->Rax}, {"rbx", c->Rbx}, {"rcx", c->Rcx}, {"rdx", c->Rdx},
+        {"rsi", c->Rsi}, {"rdi", c->Rdi}, {"r8",  c->R8},  {"r9",  c->R9},
+        {"r10", c->R10}, {"r11", c->R11}, {"r12", c->R12}, {"r13", c->R13},
+        {"r14", c->R14}, {"r15", c->R15},
+    };
+    char d[300];
+    for (size_t i = 0; i < sizeof regs / sizeof regs[0]; i++) {
+        describe_value(regs[i].v, d, sizeof d);
+        shim_log("[crash]   %-3s = %016llx  %s", regs[i].name, (unsigned long long)regs[i].v, d);
+    }
+    const unsigned char *ip = (const unsigned char*)(ULONG_PTR)c->Rip;
+    if (readable(ip - 16, 48)) {
+        char hex[200]; int o = 0;
+        for (int i = -16; i < 32; i++)
+            o += snprintf(hex + o, sizeof hex - o, i == 0 ? "[%02x]" : "%02x ", ip[i]);
+        shim_log("[crash]   bytes at rip-16: %s", hex);
+    }
+    const ULONG64 *sp = (const ULONG64*)(ULONG_PTR)c->Rsp;
+    if (readable(sp, 16 * sizeof(ULONG64)))
+        for (int i = 0; i < 16; i++) {
+            describe_value(sp[i], d, sizeof d);
+            shim_log("[crash]   [rsp+0x%02x] %016llx  %s", i * 8, (unsigned long long)sp[i], d);
+        }
+}
+
 static LONG WINAPI diag_veh(EXCEPTION_POINTERS *ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     /* only fatal-looking first-chance exceptions; skip benign C++ exceptions (0xE06D7363) and noise */
@@ -189,7 +333,8 @@ static LONG WINAPI diag_veh(EXCEPTION_POINTERS *ep) {
         code == 0xC00000FD || code == 0xC0000409 || code == 0xC0000374 ||
         code == 0xC0000096 || code == 0x80000003) {
         static volatile LONG n = 0;
-        if (InterlockedIncrement(&n) > 40) return EXCEPTION_CONTINUE_SEARCH;
+        LONG k_ex = InterlockedIncrement(&n);
+        if (k_ex > 40) return EXCEPTION_CONTINUE_SEARCH;
         char where[300];
         describe_addr(ep->ExceptionRecord->ExceptionAddress, where, sizeof where);
         shim_log("[diag] EXCEPTION 0x%08lx at %s info0=%llx info1=%llx tid=%lu",
@@ -197,6 +342,12 @@ static LONG WINAPI diag_veh(EXCEPTION_POINTERS *ep) {
                  (unsigned long long)(ep->ExceptionRecord->NumberParameters > 0 ? ep->ExceptionRecord->ExceptionInformation[0] : 0),
                  (unsigned long long)(ep->ExceptionRecord->NumberParameters > 1 ? ep->ExceptionRecord->ExceptionInformation[1] : 0),
                  GetCurrentThreadId());
+        if (ep->ExceptionRecord->NumberParameters > 1) {
+            describe_value(ep->ExceptionRecord->ExceptionInformation[1], where, sizeof where);
+            shim_log("[crash]   fault address: %s", where);
+        }
+        /* full register/stack dump for the first few only, to keep logs small */
+        if (k_ex <= 3) dump_context(ep->ContextRecord);
         void *bt[24]; USHORT k = RtlCaptureStackBackTrace(0, 24, bt, NULL);
         for (USHORT i = 0; i < k; i++) {
             describe_addr(bt[i], where, sizeof where);
@@ -224,7 +375,7 @@ static DWORD WINAPI diag_thread(LPVOID p) {
 
 static void diag_init(void) {
     char exe[MAX_PATH] = "?"; GetModuleFileNameA(NULL, exe, sizeof exe);
-    shim_log("[diag] attach: exe=%s", exe);
+    shim_log("[diag] shim %s attach: exe=%s", SHIM_VERSION, exe);
     shim_log("[diag] cmdline=%s", GetCommandLineA());
     AddVectoredExceptionHandler(1, diag_veh);
     HANDLE t = CreateThread(NULL, 0, diag_thread, NULL, 0, NULL);
